@@ -1,0 +1,41 @@
+name: Changed Python Files
+description: Compute changed .py files for PRs and pushes
+inputs:
+  push-mode:
+    description: "How to diff on push"
+    required: false
+    default: range
+outputs:
+  files:
+    description: Space-separated list of changed .py files
+    value: ${{ steps.diff.outputs.files }}
+runs:
+  using: composite
+  steps:
+    - id: diff
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          files=$(git diff --name-only --diff-filter=ACMRT "origin/${{ github.base_ref }}...HEAD" -- '*.py' || true)
+        elif [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+          BEFORE="${{ github.event.before }}"
+          SHA="${{ github.sha }}"
+          git fetch origin "$BEFORE" --depth=1 || true
+          git fetch origin "$SHA"    --depth=1 || true
+          if [[ "$BEFORE" == "0000000000000000000000000000000000000000" ]]; then
+            files=$(git ls-files -- '*.py' || true)
+          else
+            if [[ "${{ inputs.push-mode }}" == "last-commit" ]]; then
+              files=$(git diff --name-only --diff-filter=ACMRT "$SHA^!" -- '*.py' || true)
+            else
+              files=$(git diff --name-only --diff-filter=ACMRT "$BEFORE" "$SHA" -- '*.py' || true)
+            fi
+          fi
+        else
+          files=$(git ls-files -- '*.py' || true)
+        fi
+        files="${files//$'\n'/ }"
+        echo "files=$files" >> "$GITHUB_OUTPUT"
+

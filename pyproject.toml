@@ -1,0 +1,14 @@
+[tool.black]
+line-length = 88
+target-version = ["py311"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+# Keep it simple but useful.
+lint.select = ["E", "F", "I", "B", "UP"]
+lint.ignore = []
+# We use Black as the formatter; Ruff handles lint + import sort.
+format.preview = false
+
+

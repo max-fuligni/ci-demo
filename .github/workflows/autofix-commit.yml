@@ -1,0 +1,48 @@
+name: Auto-fix (Commit to PR Branch)
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+    branches: [main]
+  push:
+    branches: ['main']
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  autofix:
+    if: |
+      (github.event_name == 'pull_request' &&
+       contains(join(fromJSON(toJSON(github.event.pull_request.labels)).*.name, ','), 'autofix') &&
+       github.event.pull_request.head.repo.full_name == github.repository)
+    
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: |
+          python -m pip install --upgrade pip
+          pip install ruff black
+      - name: Determine changed Python files
+        id: diff
+        uses: ./.github/actions/changed-python-files
+      - name: Show changed files
+        if: steps.diff.outputs.files != ''
+        run: |
+          echo "Changed Python files:"
+          printf '%s\n' "${{ steps.diff.outputs.files }}"
+      - name: Apply auto-fixes
+        if: steps.diff.outputs.files != ''
+        run: |
+          ruff check --fix ${{ steps.diff.outputs.files }}
+          black ${{ steps.diff.outputs.files }}
+      - name: Commit fixes back to PR
+        uses: stefanzweifel/git-auto-commit-action@v5
+        if: steps.diff.outputs.files != ''
+        with:
+          commit_message: "ci: apply Ruff/Black auto-fixes"
+
+

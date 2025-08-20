@@ -1,0 +1,47 @@
+name: Auto-fix Bot PR
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  botpr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: |
+          python -m pip install --upgrade pip
+          pip install ruff black
+      - name: Determine changed Python files
+        id: diff
+        uses: ./.github/actions/changed-python-files
+      - name: Show changed files
+        if: steps.diff.outputs.files != ''
+        run: |
+          echo "Changed Python files:"
+          printf '%s\n' "${{ steps.diff.outputs.files }}"
+      - name: Apply auto-fixes
+        if: steps.diff.outputs.files != ''
+        run: |
+          ruff check --fix ${{ steps.diff.outputs.files }}
+          black ${{ steps.diff.outputs.files }}
+      - name: Create PR with fixes
+        uses: peter-evans/create-pull-request@v6
+        if: steps.diff.outputs.files != ''
+        with:
+          title: "ci: apply Ruff/Black auto-fixes"
+          branch: "ci/auto-fixes-${{ github.run_id }}"
+          commit-message: "ci: apply Ruff/Black auto-fixes"
+          body: "Automated formatting/lint fixes."
+          labels: "autofix"
+          add-paths: ${{ steps.diff.outputs.files }}
+          delete-branch: true
+
+
