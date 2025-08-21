@@ -1,7 +1,5 @@
 name: Lint / Format (Changed Files, Blocking)
 on:
-  pull_request:
-    branches: [main]
   push:
     branches: [main]
 
