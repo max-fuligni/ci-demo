@@ -1,5 +1,2 @@
-import os  
-import numpy as np
-
-def   foo2(  ):
-    return  1+2+3
+def foo2():
+    return 1 + 2 + 3
