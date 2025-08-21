@@ -36,7 +36,7 @@ jobs:
         uses: peter-evans/create-pull-request@v6
         if: steps.diff.outputs.files != ''
         with:
-          title: "ci: apply Ruff/Black auto-fixes"
+          title: "push ci: apply Ruff/Black auto-fixes"
           branch: "ci/auto-fixes-${{ github.run_id }}"
           commit-message: "ci: apply Ruff/Black auto-fixes"
           body: "Automated formatting/lint fixes."
