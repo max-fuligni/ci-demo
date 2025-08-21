@@ -1,10 +1,9 @@
 name: Auto-fix (Commit to PR Branch)
+
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled]
     branches: [main]
-  push:
-    branches: ['main']
 
 permissions:
   contents: write
@@ -12,37 +11,51 @@ permissions:
 
 jobs:
   autofix:
-    if: |
-      (github.event_name == 'pull_request' &&
-       contains(join(fromJSON(toJSON(github.event.pull_request.labels)).*.name, ','), 'autofix') &&
-       github.event.pull_request.head.repo.full_name == github.repository)
-    
+    # Only run for same-repo PRs that have the 'autofix' label
+    if: >
+      github.event_name == 'pull_request' &&
+      contains(github.event.pull_request.labels.*.name, 'autofix') &&
+      github.event.pull_request.head.repo.full_name == github.repository
+
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
-      - uses: actions/setup-python@v5
-        with: { python-version: '3.11' }
-      - run: |
+      - name: Checkout PR head (not merge ref)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Ruff & Black
+        run: |
           python -m pip install --upgrade pip
           pip install ruff black
+
       - name: Determine changed Python files
         id: diff
         uses: ./.github/actions/changed-python-files
+
       - name: Show changed files
         if: steps.diff.outputs.files != ''
         run: |
           echo "Changed Python files:"
           printf '%s\n' "${{ steps.diff.outputs.files }}"
-      - name: Apply auto-fixes
+
+      - name: Apply Ruff & Black fixes (non-blocking)
         if: steps.diff.outputs.files != ''
         run: |
-          ruff check --fix ${{ steps.diff.outputs.files }}
-          black ${{ steps.diff.outputs.files }}
-      - name: Commit fixes back to PR
-        uses: stefanzweifel/git-auto-commit-action@v5
+          printf '%s\n' "${{ steps.diff.outputs.files }}" | xargs -I{} ruff check --fix --exit-zero {}
+          printf '%s\n' "${{ steps.diff.outputs.files }}" | xargs -I{} black {}
+
+      - name: Commit fixes back to PR branch
         if: steps.diff.outputs.files != ''
+        uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "ci: apply Ruff/Black auto-fixes"
-
-
+          branch: ${{ github.event.pull_request.head.ref }}
+          file_pattern: "*.py"
